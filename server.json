@@ -1,31 +1,37 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "eu.ansvar/estonian-financial-regulation-mcp",
-  "description": "Query Finantsinspektsioon guidelines, recommendations, circulars, and enforcement actions",
+  "description": "Finantsinspektsioon (Estonian FSA) MCP server — guidelines, recommendations, circulars and enforcement actions",
   "repository": {
     "url": "https://github.com/Ansvar-Systems/estonian-financial-regulation-mcp",
     "source": "github"
   },
   "homepage": "https://ansvar.eu",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "Apache-2.0",
   "keywords": [
-    "finantsinspektsioon",
-    "efsa",
-    "estonian-financial-regulation",
-    "financial-services",
+    "financial regulation",
+    "estonia",
+    "regulation",
     "compliance",
-    "enforcement",
-    "mcp",
-    "ansvar"
+    "mcp"
   ],
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@ansvar/estonian-financial-regulation-mcp",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
+      }
+    },
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/estonian-financial-regulation-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://mcp.ansvar.eu/estonian-financial-regulation/mcp"
       }
     }
   ]
