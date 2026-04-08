@@ -12,7 +12,7 @@
  */
 
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -30,12 +30,14 @@ import {
   searchEnforcement,
   checkProvisionCurrency,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
 const SERVER_NAME = "estonian-financial-regulation-mcp";
+const DB_PATH = process.env["EFSA_DB_PATH"] ?? "data/efsa.db";
 
 let pkgVersion = "0.1.0";
 try {
@@ -121,6 +123,18 @@ const TOOLS = [
     description: "Return metadata about this MCP server: version, data source, tool list.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
+  {
+    name: "ee_fin_list_sources",
+    description:
+      "List the data sources used by this MCP server, including authority names, URLs, and coverage details.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "ee_fin_check_data_freshness",
+    description:
+      "Check when the database was last updated and whether data may be stale.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
 ];
 
 // --- Zod schemas ---
@@ -146,6 +160,17 @@ const SearchEnforcementArgs = z.object({
 const CheckCurrencyArgs = z.object({
   reference: z.string().min(1),
 });
+
+// --- Shared helpers ---
+
+function buildMeta(): Record<string, unknown> {
+  return {
+    disclaimer:
+      "Data sourced from official Finantsinspektsioon (Estonian Financial Supervision Authority) publications. Not legal or regulatory advice. Verify all references against primary sources before making compliance decisions.",
+    copyright: "© Finantsinspektsioon / Estonian Financial Supervision Authority",
+    source_url: "https://www.fi.ee/",
+  };
+}
 
 // --- MCP server factory ---
 
@@ -185,7 +210,7 @@ function createMcpServer(): Server {
             status: parsed.status,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: buildMeta() });
         }
 
         case "ee_fin_get_regulation": {
@@ -196,12 +221,23 @@ function createMcpServer(): Server {
               `Provision not found: ${parsed.sourcebook} ${parsed.reference}`,
             );
           }
-          return textContent(provision);
+          const provisionRecord = provision as Record<string, unknown>;
+          return textContent({
+            ...provisionRecord,
+            _citation: buildCitation(
+              String(provisionRecord.reference ?? parsed.reference),
+              String(provisionRecord.title ?? `${parsed.sourcebook} ${parsed.reference}`),
+              "ee_fin_get_regulation",
+              { sourcebook: parsed.sourcebook, reference: parsed.reference },
+              provisionRecord.url as string | undefined,
+            ),
+            _meta: buildMeta(),
+          });
         }
 
         case "ee_fin_list_sourcebooks": {
           const sourcebooks = listSourcebooks();
-          return textContent({ sourcebooks, count: sourcebooks.length });
+          return textContent({ sourcebooks, count: sourcebooks.length, _meta: buildMeta() });
         }
 
         case "ee_fin_search_enforcement": {
@@ -211,13 +247,13 @@ function createMcpServer(): Server {
             action_type: parsed.action_type,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: buildMeta() });
         }
 
         case "ee_fin_check_currency": {
           const parsed = CheckCurrencyArgs.parse(args);
           const currency = checkProvisionCurrency(parsed.reference);
-          return textContent(currency);
+          return textContent({ ...currency, _meta: buildMeta() });
         }
 
         case "ee_fin_about": {
@@ -228,6 +264,68 @@ function createMcpServer(): Server {
               "Finantsinspektsioon (Estonian Financial Supervision Authority) MCP server. Provides access to EFSA guidelines, recommendations, circulars, and enforcement actions.",
             data_source: "Finantsinspektsioon (https://www.fi.ee/)",
             tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+            _meta: buildMeta(),
+          });
+        }
+
+        case "ee_fin_list_sources": {
+          return textContent({
+            sources: [
+              {
+                id: "FI_Juhendid",
+                name: "Finantsinspektsioon Guidelines (Juhendid)",
+                authority: "Finantsinspektsioon",
+                country: "EE",
+                url: "https://www.fi.ee/et/finantsinspektsioon/finantsinspektsiooni-juhendid",
+                languages: ["et", "en"],
+                coverage: "Regulatory guidelines for financial institutions operating in Estonia",
+                license: "Estonian Government Open Data",
+              },
+              {
+                id: "FI_Soovituslikud_Juhendid",
+                name: "Finantsinspektsioon Recommended Guidelines (Soovituslikud Juhendid)",
+                authority: "Finantsinspektsioon",
+                country: "EE",
+                url: "https://www.fi.ee/et/finantsinspektsioon/finantsinspektsiooni-juhendid",
+                languages: ["et", "en"],
+                coverage: "Non-binding best practice recommendations for financial institutions",
+                license: "Estonian Government Open Data",
+              },
+              {
+                id: "FI_Ringkirjad",
+                name: "Finantsinspektsioon Circulars (Ringkirjad)",
+                authority: "Finantsinspektsioon",
+                country: "EE",
+                url: "https://www.fi.ee/et/finantsinspektsioon/ringkirjad",
+                languages: ["et"],
+                coverage: "Supervisory circulars and communications to regulated entities",
+                license: "Estonian Government Open Data",
+              },
+            ],
+            _meta: buildMeta(),
+          });
+        }
+
+        case "ee_fin_check_data_freshness": {
+          let lastModified: string | null = null;
+          let isStale: boolean | null = null;
+          try {
+            const stat = statSync(DB_PATH);
+            lastModified = stat.mtime.toISOString();
+            const ageMs = Date.now() - stat.mtime.getTime();
+            isStale = ageMs > 30 * 24 * 60 * 60 * 1000; // stale after 30 days
+          } catch {
+            // DB not accessible
+          }
+          return textContent({
+            db_path: DB_PATH,
+            last_modified: lastModified,
+            is_stale: isStale,
+            freshness_threshold_days: 30,
+            note: lastModified
+              ? "Check https://www.fi.ee/ for the most recent official publications."
+              : "Database file not found or not accessible.",
+            _meta: buildMeta(),
           });
         }
 

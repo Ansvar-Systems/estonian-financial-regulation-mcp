@@ -1,0 +1,73 @@
+name: Check Data Freshness
+
+on:
+  schedule:
+    # Run on the 1st of every month at 06:00 UTC
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+jobs:
+  check-freshness:
+    name: Check for regulatory data updates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Check for new Finantsinspektsioon data
+        run: |
+          echo "Checking Finantsinspektsioon publications for updates..."
+          echo "Visit https://www.fi.ee/et/finantsinspektsioon/finantsinspektsiooni-juhendid for latest guidelines."
+          echo "Visit https://www.fi.ee/et/finantsinspektsioon/ringkirjad for latest circulars."
+          echo "If new data is available, run: npm run ingest"
+
+      - name: Create issue if data may be stale
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'data-freshness',
+              state: 'open',
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[Data Freshness] Monthly check — ${new Date().toISOString().slice(0, 10)}`,
+                body: [
+                  '## Monthly Data Freshness Check',
+                  '',
+                  'This issue was automatically created by the monthly data freshness workflow.',
+                  '',
+                  '**Action required:** Verify that the database contains the latest Finantsinspektsioon publications:',
+                  '',
+                  '- [ ] Check https://www.fi.ee/et/finantsinspektsioon/finantsinspektsiooni-juhendid for new guidelines',
+                  '- [ ] Check https://www.fi.ee/et/finantsinspektsioon/ringkirjad for new circulars',
+                  '- [ ] Run `npm run ingest` if new data is available',
+                  '- [ ] Rebuild and push Docker image if data was updated',
+                  '',
+                  'Close this issue once the data has been verified or updated.',
+                ].join('\n'),
+                labels: ['data-freshness'],
+              });
+            }

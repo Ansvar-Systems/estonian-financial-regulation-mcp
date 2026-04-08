@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "mcp_name": "estonian-financial-regulation-mcp",
+  "authority": {
+    "name": "Finantsinspektsioon",
+    "full_name": "Estonian Financial Supervision Authority",
+    "country": "EE",
+    "url": "https://www.fi.ee/"
+  },
+  "sourcebooks": [
+    {
+      "id": "FI_Juhendid",
+      "name": "Guidelines (Juhendid)",
+      "type": "binding_guideline",
+      "languages": ["et", "en"],
+      "url": "https://www.fi.ee/et/finantsinspektsioon/finantsinspektsiooni-juhendid",
+      "license": "Estonian Government Open Data"
+    },
+    {
+      "id": "FI_Soovituslikud_Juhendid",
+      "name": "Recommended Guidelines (Soovituslikud Juhendid)",
+      "type": "recommendation",
+      "languages": ["et", "en"],
+      "url": "https://www.fi.ee/et/finantsinspektsioon/finantsinspektsiooni-juhendid",
+      "license": "Estonian Government Open Data"
+    },
+    {
+      "id": "FI_Ringkirjad",
+      "name": "Circulars (Ringkirjad)",
+      "type": "circular",
+      "languages": ["et"],
+      "url": "https://www.fi.ee/et/finantsinspektsioon/ringkirjad",
+      "license": "Estonian Government Open Data"
+    }
+  ],
+  "enforcement": {
+    "action_types": ["fine", "ban", "restriction", "warning"],
+    "source": "Finantsinspektsioon supervisory decisions",
+    "url": "https://www.fi.ee/et/finantsinspektsioon/jarelevalve"
+  },
+  "known_gaps": [
+    "Historical provisions prior to 2015 may be incomplete",
+    "Estonian-only documents may lack English translations",
+    "Enforcement actions may lag official publication by up to 30 days"
+  ],
+  "freshness_check_tool": "ee_fin_check_data_freshness",
+  "last_reviewed": "2026-04-08"
+}

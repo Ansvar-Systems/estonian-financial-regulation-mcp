@@ -43,6 +43,8 @@
     "start": "node dist/src/http-server.js",
     "seed": "npx tsx scripts/seed-sample.ts",
     "ingest": "npx tsx scripts/ingest-fi-ee.ts",
+    "build:db": "npx tsx scripts/ingest-fi-ee.ts",
+    "check-updates": "npx tsx scripts/ingest-fi-ee.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit"
   },
